@@ -1,0 +1,53 @@
+# Reward Model Training Configuration
+# ====================================
+
+training:
+  # Base model
+  base_model: "facebook/opt-1.3b"
+
+  # LoRA settings
+  use_lora: true
+  lora:
+    rank: 64
+    alpha: 128
+    dropout: 0.05
+    target_modules:
+      - "q_proj"
+      - "v_proj"
+    bias: "none"
+    task_type: "CAUSAL_LM"
+
+  # Training hyperparameters
+  learning_rate: 1.0e-5
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  num_epochs: 3
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+  # Sequence lengths
+  max_context_length: 256
+  max_response_length: 256
+
+  # Loss weights
+  preference_loss_weight: 1.0
+  lm_loss_weight: 0.1
+
+  # Checkpointing
+  save_steps: 500
+  eval_steps: 100
+  logging_steps: 10
+
+  # Device and precision
+  device: "auto"
+  mixed_precision: "fp16"
+
+# Registry configuration
+registry:
+  storage_path: "./model_registry"
+  metadata_backend: "local"
+
+# Global settings
+log_level: "INFO"
+seed: 42

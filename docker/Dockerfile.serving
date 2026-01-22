@@ -1,0 +1,52 @@
+# Nexus-LLM Serving Docker Image
+# ===============================
+# Optimized for vLLM inference serving
+
+FROM nvidia/cuda:12.1-runtime-ubuntu22.04 AS base
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.10 \
+    python3-pip \
+    python3.10-venv \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 nexus
+WORKDIR /app
+
+# Install Python dependencies
+COPY pyproject.toml ./
+RUN pip3 install --upgrade pip && \
+    pip3 install torch --index-url https://download.pytorch.org/whl/cu121 && \
+    pip3 install vllm && \
+    pip3 install -e .
+
+# Copy application code
+COPY nexus/ ./nexus/
+COPY scripts/ ./scripts/
+COPY configs/ ./configs/
+
+# Set ownership
+RUN chown -R nexus:nexus /app
+
+# Switch to non-root user
+USER nexus
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command
+CMD ["python3", "-m", "nexus.serving.app"]

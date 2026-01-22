@@ -1,0 +1,88 @@
+# Nexus-LLM Docker Compose Configuration
+# =======================================
+# Full stack deployment with API, workers, and Redis
+
+version: "3.8"
+
+services:
+  # Redis for request queuing and caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Main API server
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.serving
+    ports:
+      - "8000:8000"
+    environment:
+      - NEXUS_SERVING__REDIS__HOST=redis
+      - NEXUS_SERVING__INFERENCE__BACKEND=vllm
+      - NEXUS_SERVING__INFERENCE__MODEL_NAME_OR_PATH=TinyLlama/TinyLlama-1.1B-Chat-v1.0
+      - NEXUS_LOG_LEVEL=INFO
+    volumes:
+      - model_cache:/root/.cache/huggingface
+      - model_registry:/data/model_registry
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+
+  # Inference worker (for distributed processing)
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.serving
+    command: python3 -m nexus.workers.inference_worker
+    environment:
+      - NEXUS_SERVING__REDIS__HOST=redis
+      - NEXUS_SERVING__INFERENCE__BACKEND=vllm
+      - NEXUS_SERVING__INFERENCE__MODEL_NAME_OR_PATH=TinyLlama/TinyLlama-1.1B-Chat-v1.0
+      - NEXUS_LOG_LEVEL=INFO
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  redis_data:
+  model_cache:
+  model_registry:
+
+networks:
+  default:
+    name: nexus-network

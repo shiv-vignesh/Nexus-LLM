@@ -1,0 +1,51 @@
+# Nexus-LLM Training Docker Image
+# ================================
+# Optimized for RLHF reward model training
+
+FROM nvidia/cuda:12.1-devel-ubuntu22.04 AS base
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.10 \
+    python3-pip \
+    python3.10-venv \
+    python3.10-dev \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 nexus
+WORKDIR /app
+
+# Install Python dependencies
+COPY pyproject.toml ./
+RUN pip3 install --upgrade pip && \
+    pip3 install torch --index-url https://download.pytorch.org/whl/cu121 && \
+    pip3 install flash-attn --no-build-isolation && \
+    pip3 install -e .
+
+# Copy application code
+COPY nexus/ ./nexus/
+COPY scripts/ ./scripts/
+COPY configs/ ./configs/
+
+# Create directories for data and outputs
+RUN mkdir -p /data /output /model_registry && \
+    chown -R nexus:nexus /app /data /output /model_registry
+
+# Switch to non-root user
+USER nexus
+
+# Mount points
+VOLUME ["/data", "/output", "/model_registry"]
+
+# Default command
+CMD ["python3", "scripts/train_reward_model.py", "--help"]

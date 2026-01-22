@@ -1,0 +1,55 @@
+# Development Serving Configuration
+# ==================================
+
+serving:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1
+
+  # API settings
+  api_prefix: "/v1"
+  enable_docs: true
+  cors_origins:
+    - "*"
+
+  # Rate limiting (relaxed for development)
+  rate_limit_requests: 1000
+  rate_limit_window_seconds: 60
+
+  # Request handling
+  request_timeout_seconds: 600
+  max_concurrent_requests: 100
+
+  # Redis configuration
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 0
+    password: null
+    stream_name: "nexus:inference:requests"
+    consumer_group: "nexus-workers"
+    result_ttl_seconds: 3600
+
+  # Inference configuration (using transformers for easier debugging)
+  inference:
+    backend: "transformers"
+    model_name_or_path: "facebook/opt-125m"  # Small model for development
+
+    # Generation defaults
+    max_tokens: 128
+    temperature: 0.7
+    top_p: 0.95
+    top_k: 50
+
+    # Batching
+    max_batch_size: 8
+    batch_timeout_ms: 100
+
+# Registry configuration
+registry:
+  storage_path: "./model_registry"
+  metadata_backend: "local"
+
+# Global settings
+log_level: "DEBUG"
+seed: 42
